@@ -74,15 +74,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TITULO: ${{ steps.decidir.outputs.titulo }}
           CUERPO: ${{ steps.decidir.outputs.cuerpo }}
+          DUENO: ${{ github.repository_owner }}
         run: |
+          # MENCIONA Y ASIGNA al dueño del repositorio, y eso no es cortesía.
+          #
+          # Medido el 2026-09-05: el simulacro abrió la incidencia, salió en verde, y
+          # NO llegó ningún correo. La cuenta tenía el repositorio en «Participating»,
+          # asi que de algo que abre un robot no se genera aviso ninguno — ni siquiera
+          # dentro de GitHub. La alarma se disparó y no llegó a nadie.
+          #
+          # Una mención avisa con la configuración por defecto, y una asignación
+          # también. Asi la entrega viaja DENTRO de la alarma, en vez de depender de un
+          # ajuste por usuario que nadie revisa y que puede cambiar en silencio.
+          #
           # Un aviso al día sería ruido: si ya hay uno abierto, se comenta en él.
           NUMERO=$(gh issue list --state open --search "$TITULO in:title" \
                      --json number --jq '.[0].number // empty')
           if [ -z "$NUMERO" ]; then
-            gh issue create --title "$TITULO" \
-              --body "$CUERPO"$'\n\n'"Lo dice el vigia suplente, que corre en este alojamiento y no en la maquina del observatorio. Comprueba esa maquina: el planificador, si estuvo encendida, y el registro de la tarea en \`archivo-strata/tareas/registro/\`."
+            gh issue create --title "$TITULO" --assignee "$DUENO" \
+              --body "@$DUENO"$'\n\n'"$CUERPO"$'\n\n'"Lo dice el vigia suplente, que corre en este alojamiento y no en la maquina del observatorio. Comprueba esa maquina: el planificador, si estuvo encendida, y el registro de la tarea en \`archivo-strata/tareas/registro/\`."
           else
-            gh issue comment "$NUMERO" --body "$CUERPO"
+            gh issue comment "$NUMERO" --body "@$DUENO"$'\n\n'"$CUERPO"
           fi
 
       - if: steps.decidir.outputs.avisar == 'no'
