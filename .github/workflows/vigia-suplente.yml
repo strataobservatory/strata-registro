@@ -15,7 +15,12 @@ on:
     # nueve horas de margen para una máquina que arrancó tarde. Ancho a propósito: un
     # suplente que avisa de mañanas que acaban bien se acaba silenciando.
     - cron: "0 15 * * *"
-  workflow_dispatch:        # para poder probarlo a mano sin esperar al cron
+  workflow_dispatch:
+    inputs:
+      simular_silencio:
+        description: "SIMULACRO: forzar el aviso para ver que la alarma suena de verdad"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,32 +30,62 @@ jobs:
   comprobar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v5 y no v4: la v4 corre sobre Node 20, que está en retirada. Se sube antes de que
+      # se convierta en fallo, porque el día que rompa lo hará en silencio y el suplente
+      # dejará de correr justo cuando haga falta.
+      - uses: actions/checkout@v5
 
       - id: mirar
         name: ¿Hay resumen de hoy?
+        # `continue-on-error` a propósito: cuando hay silencio el script sale con código 2,
+        # y aquí NO queremos que el trabajo se corte antes de dar el aviso. El rojo del
+        # trabajo se pone al final, en el último paso.
+        continue-on-error: true
         run: python .github/comprobar_resumen.py resumenes.txt
 
-      # `continue-on-error` en el paso de arriba no: que el trabajo salga en rojo cuando
-      # hay silencio es parte del aviso — se ve en la lista de ejecuciones sin abrir nada.
-      - if: always() && steps.mirar.outputs.avisar == 'si'
+      # --- el simulacro -----------------------------------------------------
+      #
+      # Una alarma que nadie ha visto sonar no está comprobada. Esto fuerza el camino del
+      # aviso SIN tocar nada del observatorio, para poder verlo entero una vez: la
+      # incidencia, el correo, y el cierre.
+      #
+      # Usa un título distinto a propósito, para que un simulacro no se pueda confundir
+      # nunca con un aviso de verdad ni cierre uno real por error.
+      - id: decidir
+        name: Qué toca hacer
+        env:
+          SIMULACRO: ${{ inputs.simular_silencio }}
+          AVISAR: ${{ steps.mirar.outputs.avisar }}
+          MOTIVO: ${{ steps.mirar.outputs.motivo }}
+        run: |
+          if [ "$SIMULACRO" = "true" ]; then
+            echo "avisar=si" >> "$GITHUB_OUTPUT"
+            echo "titulo=SIMULACRO - prueba del vigia suplente" >> "$GITHUB_OUTPUT"
+            echo "cuerpo=Esto es un SIMULACRO lanzado a mano. No pasa nada con el observatorio. Sirve para comprobar de una vez que la alarma llega: que se abre la incidencia y que el correo sale. Cierrala cuando la hayas visto." >> "$GITHUB_OUTPUT"
+          else
+            echo "avisar=${AVISAR}" >> "$GITHUB_OUTPUT"
+            echo "titulo=El observatorio no ha sellado" >> "$GITHUB_OUTPUT"
+            echo "cuerpo=${MOTIVO}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.decidir.outputs.avisar == 'si'
         name: Abrir o actualizar el aviso
         env:
           GH_TOKEN: ${{ github.token }}
-          MOTIVO: ${{ steps.mirar.outputs.motivo }}
+          TITULO: ${{ steps.decidir.outputs.titulo }}
+          CUERPO: ${{ steps.decidir.outputs.cuerpo }}
         run: |
-          TITULO="El observatorio no ha sellado"
           # Un aviso al día sería ruido: si ya hay uno abierto, se comenta en él.
           NUMERO=$(gh issue list --state open --search "$TITULO in:title" \
                      --json number --jq '.[0].number // empty')
           if [ -z "$NUMERO" ]; then
             gh issue create --title "$TITULO" \
-              --body "$MOTIVO"$'\n\n'"Lo dice el vigía suplente, que corre en este alojamiento y no en la máquina del observatorio. Comprueba esa máquina: el planificador, si estuvo encendida, y el registro de la tarea en \`archivo-strata/tareas/registro/\`."
+              --body "$CUERPO"$'\n\n'"Lo dice el vigia suplente, que corre en este alojamiento y no en la maquina del observatorio. Comprueba esa maquina: el planificador, si estuvo encendida, y el registro de la tarea en \`archivo-strata/tareas/registro/\`."
           else
-            gh issue comment "$NUMERO" --body "$MOTIVO"
+            gh issue comment "$NUMERO" --body "$CUERPO"
           fi
 
-      - if: always() && steps.mirar.outputs.avisar == 'no'
+      - if: steps.decidir.outputs.avisar == 'no'
         name: Cerrar el aviso si lo hubiera
         env:
           GH_TOKEN: ${{ github.token }}
@@ -58,5 +93,14 @@ jobs:
           NUMERO=$(gh issue list --state open --search "El observatorio no ha sellado in:title" \
                      --json number --jq '.[0].number // empty')
           if [ -n "$NUMERO" ]; then
-            gh issue close "$NUMERO" --comment "Vuelve a haber resumen del día: el observatorio ha sellado."
+            gh issue close "$NUMERO" --comment "Vuelve a haber resumen del dia: el observatorio ha sellado."
           fi
+
+      # El trabajo tiene que quedar en ROJO cuando hay silencio de verdad: se ve en la
+      # lista de ejecuciones sin abrir nada. Un simulacro NO pone rojo — si lo pusiera,
+      # un ensayo sería indistinguible de una avería en el historial.
+      - if: steps.decidir.outputs.avisar == 'si' && inputs.simular_silencio != true
+        name: Y que conste como fallo
+        run: |
+          echo "::error::${{ steps.decidir.outputs.cuerpo }}"
+          exit 1
