@@ -1,0 +1,62 @@
+# El vigía suplente. Va en el repo TESTIGO, no en el del proyecto.
+#
+# Se ejecuta en el alojamiento, así que sigue funcionando con la máquina del observatorio
+# apagada — que es el caso entero contra el que existe.
+#
+# Instalación: copiar este fichero al repo testigo como
+#   .github/workflows/vigia-suplente.yml
+# y `suplente/comprobar_resumen.py` como
+#   .github/comprobar_resumen.py
+name: vigia-suplente
+
+on:
+  schedule:
+    # 15:00 UTC = 17:00 locales. La pasada empuja sobre las 05:45 UTC, así que esto deja
+    # nueve horas de margen para una máquina que arrancó tarde. Ancho a propósito: un
+    # suplente que avisa de mañanas que acaban bien se acaba silenciando.
+    - cron: "0 15 * * *"
+  workflow_dispatch:        # para poder probarlo a mano sin esperar al cron
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: mirar
+        name: ¿Hay resumen de hoy?
+        run: python .github/comprobar_resumen.py resumenes.txt
+
+      # `continue-on-error` en el paso de arriba no: que el trabajo salga en rojo cuando
+      # hay silencio es parte del aviso — se ve en la lista de ejecuciones sin abrir nada.
+      - if: always() && steps.mirar.outputs.avisar == 'si'
+        name: Abrir o actualizar el aviso
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MOTIVO: ${{ steps.mirar.outputs.motivo }}
+        run: |
+          TITULO="El observatorio no ha sellado"
+          # Un aviso al día sería ruido: si ya hay uno abierto, se comenta en él.
+          NUMERO=$(gh issue list --state open --search "$TITULO in:title" \
+                     --json number --jq '.[0].number // empty')
+          if [ -z "$NUMERO" ]; then
+            gh issue create --title "$TITULO" \
+              --body "$MOTIVO"$'\n\n'"Lo dice el vigía suplente, que corre en este alojamiento y no en la máquina del observatorio. Comprueba esa máquina: el planificador, si estuvo encendida, y el registro de la tarea en \`archivo-strata/tareas/registro/\`."
+          else
+            gh issue comment "$NUMERO" --body "$MOTIVO"
+          fi
+
+      - if: always() && steps.mirar.outputs.avisar == 'no'
+        name: Cerrar el aviso si lo hubiera
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NUMERO=$(gh issue list --state open --search "El observatorio no ha sellado in:title" \
+                     --json number --jq '.[0].number // empty')
+          if [ -n "$NUMERO" ]; then
+            gh issue close "$NUMERO" --comment "Vuelve a haber resumen del día: el observatorio ha sellado."
+          fi
