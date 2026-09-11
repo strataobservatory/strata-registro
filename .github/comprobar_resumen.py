@@ -46,6 +46,34 @@ def ultimo_dia(texto: str) -> str:
     return max(fechas) if fechas else ""
 
 
+def huecos(texto: str) -> list:
+    """Los días que faltan en la serie, entre el primero y el último que hay.
+
+    **Por qué hace falta además del veredicto.** El veredicto mira sólo si el último
+    resumen es de hoy. Si un día se pierde y ESE día el suplente no llega a correr —el
+    alojamiento descarta ejecuciones programadas cuando va cargado, y lo documenta—, al
+    día siguiente ya hay resumen nuevo, el veredicto dice «al día», y el día perdido no
+    lo denuncia nadie nunca. La serie, en cambio, lo guarda para siempre: un hueco en ella
+    es un día que no se selló, y eso no caduca.
+    """
+    fechas = set()
+    for linea in texto.splitlines():
+        cacho = linea.strip().split(" ", 1)[0]
+        if len(cacho) == 10 and cacho[4] == "-" and cacho[7] == "-":
+            try:
+                fechas.add(datetime.date.fromisoformat(cacho))
+            except ValueError:
+                continue
+    if not fechas:
+        return []
+    dia, fin, faltan = min(fechas), max(fechas), []
+    while dia < fin:
+        dia += datetime.timedelta(days=1)
+        if dia not in fechas:
+            faltan.append(dia.isoformat())
+    return faltan
+
+
 def veredicto(texto: str, ahora: datetime.datetime,
               horas=HORAS_DE_GRACIA) -> tuple:
     """(¿hay que avisar?, motivo). Función pura: se puede probar sin red y sin repo.
@@ -84,6 +112,9 @@ def main(argv=None) -> int:
     hay_que_avisar, motivo = veredicto(
         texto, datetime.datetime.now(datetime.timezone.utc))
     print(motivo)
+    perdidos = huecos(texto)
+    if perdidos:
+        print(f"días que faltan en la serie: {', '.join(perdidos)}")
 
     # Se deja el veredicto donde lo lea el paso siguiente del flujo de trabajo.
     salida = os.environ.get("GITHUB_OUTPUT")
@@ -91,7 +122,8 @@ def main(argv=None) -> int:
         with open(salida, "a", encoding="utf-8") as fichero:
             fichero.write(f"avisar={'si' if hay_que_avisar else 'no'}\n")
             fichero.write(f"motivo={motivo}\n")
-    return 2 if hay_que_avisar else 0
+            fichero.write(f"huecos={' '.join(perdidos)}\n")
+    return 2 if (hay_que_avisar or perdidos) else 0
 
 
 if __name__ == "__main__":
