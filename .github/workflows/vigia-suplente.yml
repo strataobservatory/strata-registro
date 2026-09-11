@@ -11,10 +11,17 @@ name: vigia-suplente
 
 on:
   schedule:
-    # 15:00 UTC = 17:00 locales. La pasada empuja sobre las 05:45 UTC, así que esto deja
+    # 15:23 UTC = 17:23 locales. La pasada empuja sobre las 05:45 UTC, así que esto deja
     # nueve horas de margen para una máquina que arrancó tarde. Ancho a propósito: un
     # suplente que avisa de mañanas que acaban bien se acaba silenciando.
-    - cron: "0 15 * * *"
+    #
+    # **Minuto 23 y no 0, y DOS veces, por algo que el alojamiento documenta:** al
+    # principio de cada hora las ejecuciones programadas se retrasan y, con carga
+    # suficiente, SE DESCARTAN. Estaba en «0 15», justo ahí: el día que la descartaran,
+    # el suplente no correría el día que hacía falta. La segunda, a las 20:23 UTC, es la
+    # última llamada: quedan 3 h 37 min de día UTC para sellarlo todavía.
+    - cron: "23 15 * * *"
+    - cron: "23 20 * * *"
   workflow_dispatch:
     inputs:
       simular_silencio:
@@ -96,6 +103,44 @@ jobs:
           else
             gh issue comment "$NUMERO" --body "@$DUENO"$'\n\n'"$CUERPO"
           fi
+
+      # --- los días perdidos ------------------------------------------------
+      #
+      # El aviso de arriba mira si hay resumen de HOY. Si un día se pierde y ese día este
+      # flujo no llega a correr, al siguiente ya hay resumen nuevo y el aviso calla: el
+      # día perdido no lo denunciaría nadie. La serie lo guarda, así que se mira la serie.
+      #
+      # Una incidencia POR DÍA, con la fecha en el título, y buscada en TODOS los estados:
+      # se abre una vez y no se reabre nunca, porque un día que no se selló no tiene
+      # arreglo y reabrirlo cada tarde sería ruido. Si el día aparece después —la capa C
+      # empujó tarde—, se cierra diciéndolo: lo que faltó fue el aviso, no el día.
+      - name: Un aviso por cada día que falte en la serie
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HUECOS: ${{ steps.mirar.outputs.huecos }}
+          DUENO: ${{ github.repository_owner }}
+        run: |
+          PREFIJO="Se perdio el dia "
+          # Todas las de días perdidos, abiertas y cerradas, como «numero estado fecha».
+          # La búsqueda del alojamiento es aproximada; el `select` exige el prefijo exacto.
+          gh issue list --state all --limit 500 --search "Se perdio el dia in:title" \
+             --json number,state,title \
+             --jq ".[] | select(.title | startswith(\"$PREFIJO\")) | \"\(.number) \(.state) \(.title | ltrimstr(\"$PREFIJO\"))\"" \
+             > conocidas.txt
+          for DIA in $HUECOS; do
+            if ! grep -q " $DIA\$" conocidas.txt; then
+              gh issue create --title "$PREFIJO$DIA" --assignee "$DUENO" \
+                --body "@$DUENO"$'\n\n'"En resumenes.txt no hay linea del $DIA y si las hay de dias posteriores: ese dia no llego a sellarse, o su resumen no llego nunca a este alojamiento. Un dia que no se sella NO se puede sellar despues. Compruebalo en archivo-strata/dias/ de la maquina del observatorio y cierra esta incidencia cuando conste por que."
+            fi
+          done
+          # Las abiertas cuyo día ya NO falta: se cierran, diciendo qué pasó.
+          while read -r NUM ESTADO DIA; do
+            [ "$ESTADO" = "OPEN" ] || continue
+            case " $HUECOS " in
+              *" $DIA "*) ;;
+              *) gh issue close "$NUM" --comment "El resumen del $DIA ha aparecido en la serie: lo que falto fue el aviso a tiempo, no el dia." ;;
+            esac
+          done < conocidas.txt
 
       - if: steps.decidir.outputs.avisar == 'no'
         name: Cerrar el aviso si lo hubiera
