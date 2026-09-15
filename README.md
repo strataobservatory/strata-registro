@@ -50,8 +50,8 @@ header, and the whole chain, day by day, with no gap and no rewritten link.
 ## More
 
 - Who we are, how we read and how to stop us: https://github.com/strataobservatory
-- The observation method travels in full inside every sealed day. It does not have a
-  public address of its own yet.
+- The observation method, every version, with the days each one governs:
+  https://github.com/strataobservatory/strata-metodo
 
 ---
 
@@ -90,5 +90,5 @@ cabecera, y la cadena entera, día a día, sin huecos ni eslabones reescritos.
   después. Por eso este testigo es una de tres capas, no la única.
 
 **Más.** Quiénes somos, cómo leemos y cómo pararnos: https://github.com/strataobservatory.
-El método de observación viaja íntegro dentro de cada día sellado. Todavía no tiene una
-dirección pública propia.
+El método de observación, todas sus versiones y los días que gobierna cada una:
+https://github.com/strataobservatory/strata-metodo.
