@@ -5,8 +5,9 @@ es perder el archivo: es **enterarse tarde de que la pasada no corrió**. Y eso 
 vigilar la propia máquina — el 2026-09-04 estuvo apagada y se perdió la ejecución del vigía
 sin dejar error, ni fichero, ni una línea.
 
-**Por qué mira `resumenes.txt` y no otra cosa.** Es la señal que **ya existe**: la capa C la
-empuja al alojamiento cada día como parte de su trabajo, así que este comprobador no añade
+**Por qué mira `resumenes.txt` y no otra cosa.** Es la señal que **ya existe**: el testigo
+(la capa P desde el 2026-09-26) la empuja al alojamiento cada día como parte de su trabajo,
+así que este comprobador no añade
 nada al camino crítico ni toca el archivo. Y es una señal **del tercero**: lo que se lee es
 lo que el alojamiento tiene, no lo que nosotros decimos tener.
 
@@ -16,7 +17,7 @@ escritores sobre una cadena no dan un conflicto, dan **dos historias incompatibl
 día**, y el producto entero consiste en que haya exactamente una.
 
 **Y lo que no cubre, dicho aquí.** Que un alojamiento tenga la línea de hoy prueba que la
-capa C empujó, no que el día se sellara entero ni bien. Es un detector de **silencio**, no un
+publicación empujó, no que el día se sellara entero ni bien. Es un detector de **silencio**, no un
 verificador: para eso están `verificar archivo` y `verificar capas`, que necesitan el archivo
 delante.
 """
