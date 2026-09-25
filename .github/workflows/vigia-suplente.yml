@@ -111,9 +111,11 @@ jobs:
       # día perdido no lo denunciaría nadie. La serie lo guarda, así que se mira la serie.
       #
       # Una incidencia POR DÍA, con la fecha en el título, y buscada en TODOS los estados:
-      # se abre una vez y no se reabre nunca, porque un día que no se selló no tiene
-      # arreglo y reabrirlo cada tarde sería ruido. Si el día aparece después —la capa C
-      # empujó tarde—, se cierra diciéndolo: lo que faltó fue el aviso, no el día.
+      # se abre una vez y no se reabre nunca: un día sin medir no tiene arreglo y
+      # reabrirlo cada tarde sería ruido. Si el día aparece después se cierra, pero SIN
+      # decir por qué, porque desde aquí no se sabe: puede que el testigo empujara tarde,
+      # o que la pasada no ocurriera y la del día siguiente lo sellara como NO OBSERVADO
+      # (desde el 2026-09-12). La línea de resumenes.txt no distingue los dos casos.
       - name: Un aviso por cada día que falte en la serie
         env:
           GH_TOKEN: ${{ github.token }}
@@ -130,7 +132,7 @@ jobs:
           for DIA in $HUECOS; do
             if ! grep -q " $DIA\$" conocidas.txt; then
               gh issue create --title "$PREFIJO$DIA" --assignee "$DUENO" \
-                --body "@$DUENO"$'\n\n'"En resumenes.txt no hay linea del $DIA y si las hay de dias posteriores: ese dia no llego a sellarse, o su resumen no llego nunca a este alojamiento. Un dia que no se sella NO se puede sellar despues. Compruebalo en archivo-strata/dias/ de la maquina del observatorio y cierra esta incidencia cuando conste por que."
+                --body "@$DUENO"$'\n\n'"En resumenes.txt no hay linea del $DIA y si las hay de dias posteriores: ese dia no llego a sellarse a su hora, o su resumen no llego a este alojamiento. Si la pasada no ocurrio, la del dia siguiente lo sella como NO OBSERVADO: existira en el archivo, pero ese dia no se midio. Compruebalo en archivo-strata/dias/ de la maquina del observatorio y cierra esta incidencia cuando conste por que."
             fi
           done
           # Las abiertas cuyo día ya NO falta: se cierran, diciendo qué pasó.
@@ -138,7 +140,7 @@ jobs:
             [ "$ESTADO" = "OPEN" ] || continue
             case " $HUECOS " in
               *" $DIA "*) ;;
-              *) gh issue close "$NUM" --comment "El resumen del $DIA ha aparecido en la serie: lo que falto fue el aviso a tiempo, no el dia." ;;
+              *) gh issue close "$NUM" --comment "El resumen del $DIA ha aparecido en la serie. Desde aqui no se distingue si llego tarde o si el dia se sello despues como NO OBSERVADO (la pasada no ocurrio): la cobertura del dia, en archivo-strata/dias/$DIA.jsonl, dice cual de las dos." ;;
             esac
           done < conocidas.txt
 
