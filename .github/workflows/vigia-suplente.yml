@@ -81,7 +81,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TITULO: ${{ steps.decidir.outputs.titulo }}
           CUERPO: ${{ steps.decidir.outputs.cuerpo }}
-          DUENO: ${{ github.repository_owner }}
+          DUENO: luiscalvoruiz
         run: |
           # MENCIONA Y ASIGNA al dueño del repositorio, y eso no es cortesía.
           #
@@ -120,7 +120,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HUECOS: ${{ steps.mirar.outputs.huecos }}
-          DUENO: ${{ github.repository_owner }}
+          DUENO: luiscalvoruiz
         run: |
           PREFIJO="Se perdio el dia "
           # Todas las de días perdidos, abiertas y cerradas, como «numero estado fecha».
